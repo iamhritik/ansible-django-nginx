@@ -1,0 +1,7 @@
+[ubuntu]
+65.0.80.236
+
+[ubuntu:vars]
+ansible_ssh_user=ubuntu
+ansible_ssh_port=22
+ansible_ssh_private_key_file=/home/rookie/hotmail.pem

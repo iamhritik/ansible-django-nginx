@@ -1,0 +1,130 @@
+---
+- name: Install required packages
+  hosts: all
+  become: yes
+  vars_prompt:
+    - name: projectdirectory
+      prompt: Enter your Django Project Directory
+      private: no
+
+    - name: projectname
+      prompt: Enter your Django Project Name
+      private: no
+
+    - name: server_address
+      prompt: Enter your Server name or IP address
+      private: no
+
+    - name: githubrepo
+      prompt: Enter github Repository url
+      private: no
+  tasks:
+    - name: Install required packages
+      yum:
+        name: ['python3', 'python3-pip', 'build-essential', 'libpq-dev', 'python-dev', 'postgresql', 'postgresql-contrib', 'nginx', 'supervisor', 'virtualenv']
+        state: present
+        update_cache: yes
+
+    - name: Create an user with name webhost
+      user:
+        name: webhost
+        groups: sudo
+        comment: used for webhosting purpose
+        create_home: yes
+        state: present
+
+    - name: Add Git Repository
+      git:
+        repo: '{{ githubrepo }}'
+        dest: /home/webhost/publicaffiliate
+
+    - name: Configure virtualenv and install python modules
+      pip:
+        name: ['gunicorn', 'django']
+        virtualenv: /home/webhost/
+        virtualenv_command: virtualenv
+        virtualenv_python: python3
+
+    - name: Change home dir permission & group
+      file:
+        path: /home/webhost
+        group: www-data
+        state: directory
+        mode: 0777
+        recurse: yes
+
+    - name: Copy gunicorn service file
+      copy:
+        src: gunicorn.service
+        dest: /etc/systemd/system/gunicorn.service
+        mode: 0777
+
+    - name: Add project directory in gunicorn.service file
+      lineinfile:
+        path: /etc/systemd/system/gunicorn.service
+        regexp: '^WorkingDirectory='
+        line: 'WorkingDirectory={{ projectdirectory }}'
+
+
+    - name: Add execution in gunicorn.service file
+      lineinfile:
+        path: /etc/systemd/system/gunicorn.service
+        regexp: '^projectname='
+        line: 'ExecStart=/home/webhost/bin/gunicorn --access-logfile - --workers 3 --bind unix:{{ projectdirectory }}/{{ projectname }}.sock {{ projectname }}.wsgi:application'
+
+    - name: Reload Daemon
+      systemd:
+        daemon_reload: yes
+
+    - name: start gunicorn service
+      service:
+        name: gunicorn
+        state: started
+
+    - name: Create Nginx server block
+      copy:
+        src: projectblock
+        dest: /etc/nginx/sites-available/projectblock
+        mode: 0777
+
+    - name: Change server name in nginx server block
+      lineinfile:
+        path: /etc/nginx/sites-available/projectblock
+        regexp: '^server_name'
+        line: 'server_name {{ server_address }};'
+
+    - name: Change static location in nginx server block
+      lineinfile:
+        path: /etc/nginx/sites-available/projectblock
+        regexp: '^alias'
+        line: 'alias {{ projectdirectory }}/static;'
+
+    - name: Change proxy_pass in nginx server block
+      lineinfile:
+        path: /etc/nginx/sites-available/projectblock
+        regexp: '^proxy_pass'
+        line: 'proxy_pass http://unix:{{ projectdirectory }}/{{ projectname }}.sock;'
+
+    - name: Create a symbolic link of nginx server block
+      file:
+        src: /etc/nginx/sites-available/projectblock
+        dest: /etc/nginx/sites-enabled/projectblock
+        state: link
+
+    - name: check nginx configuration error
+      command: nginx -t
+      register: nginxconfigcheck
+
+    - name: show nginx any syntax errors
+      debug:
+        var: nginxconfigcheck
+
+    - name: started Nginx service
+      service:
+        name: nginx
+        state: started
+
+    - name: restarted Nginx service
+      service:
+        name: nginx
+        state: restarted

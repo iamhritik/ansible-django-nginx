@@ -1,0 +1,12 @@
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+User=webhost
+Group=www-data
+WorkingDirectory=
+projectname=
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,17 @@
+server {
+listen 80;
+server_name
+location = /favicon.ico {
+access_log /var/log/nginx-access.log;
+error_log  /var/log/nginx-error.log;
+log_not_found off;
+}
+location /static {
+alias
+}
+
+location / {
+include proxy_params;
+proxy_pass http://unix:/home/webhost/publicaffiliate/affiliate.sock;
+}
+}
