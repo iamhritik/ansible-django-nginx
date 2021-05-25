@@ -1,5 +1,5 @@
 [ubuntu]
-65.0.80.236
+<ip-address>
 
 [ubuntu:vars]
 ansible_ssh_user=ubuntu
