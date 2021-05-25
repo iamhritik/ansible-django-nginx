@@ -1,5 +1,5 @@
 ---
-- name: Django & Nginx Deployment for Ubuntu servers
+- name: Django & Nginx Deployment for Ubuntu 18
   hosts: all
   become: yes
   vars_prompt:
@@ -87,6 +87,7 @@
       service:
         name: gunicorn
         state: started
+
     - stat:
         path: /etc/systemd/system/gunicorn.service
       register: nginx_block
