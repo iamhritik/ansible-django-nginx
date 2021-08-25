@@ -1,0 +1,12 @@
+[Unit]
+Description=gunicorn daemon
+After=network.target
+
+[Service]
+User={{ web_user }}
+Group=www-data
+WorkingDirectory= {{ project_directory }}
+{{ gunicorn_project_name }}
+
+[Install]
+WantedBy=multi-user.target

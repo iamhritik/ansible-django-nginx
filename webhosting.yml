@@ -1,23 +1,15 @@
 ---
-- name: Django & Nginx Deployment for Ubuntu 18
+- name: Django & Nginx Deployment
   hosts: all
   become: yes
-  vars_prompt:
-    - name: projectdirectory
-      prompt: Enter your Django Project Directory
-      private: no
 
-    - name: projectname
-      prompt: Enter your Django Project Name
-      private: no
+  vars_files: "vars/Ubuntu.yml"
 
-    - name: server_address
-      prompt: Enter your Server name or IP address
-      private: no
-
-    - name: githubrepo
-      prompt: Enter github Repository url
-      private: no
+  handlers:
+    - name: restart_nginx
+      service:
+        name: nginx
+        state: restarted
 
   tasks:
     - name: Install required packages for Deployment
@@ -28,28 +20,29 @@
 
     - name: Create an user with name webhost
       user:
-        name: webhost
+        name: "{{ web_user }}"
         groups: sudo
-        comment: used for webhosting purpose
+        comment: web_hosting_user
         create_home: yes
         state: present
 
     - name: Add Git Repository
       git:
-        repo: '{{ githubrepo }}'
-        dest: /home/webhost/publicaffiliate
+        repo: '{{ github_repo }}'
+        dest: "/home/{{ web_user }}/{{ project_name}}"
         update: no
+        force: yes
 
     - name: Configure virtualenv and install python modules
       pip:
         name: ['gunicorn', 'django']
-        virtualenv: /home/webhost/
+        virtualenv: "/home/{{ web_user }}/"
         virtualenv_command: virtualenv
-        virtualenv_python: python3.6
+        virtualenv_python: python3.8
 
     - name: Change home dir permission & group
       file:
-        path: /home/webhost
+        path: "/home/{{ web_user }}"
         group: www-data
         state: directory
         mode: 0777
@@ -59,25 +52,12 @@
         path: /etc/systemd/system/gunicorn.service
       register: gunicorn_file
 
-    - name: Copy gunicorn service file
-      copy:
-        src: gunicorn.service
+    - name: Create gunicorn service
+      template:
+        src: gunicorn.service.j2
         dest: /etc/systemd/system/gunicorn.service
         mode: 0777
       when: gunicorn_file.stat.exists == false
-
-    - name: Add project directory in gunicorn.service file
-      lineinfile:
-        path: /etc/systemd/system/gunicorn.service
-        regexp: '^WorkingDirectory='
-        line: 'WorkingDirectory={{ projectdirectory }}'
-
-
-    - name: Add execution in gunicorn.service file
-      lineinfile:
-        path: /etc/systemd/system/gunicorn.service
-        regexp: '^projectname='
-        line: 'ExecStart=/home/webhost/bin/gunicorn --access-logfile - --workers 3 --bind unix:{{ projectdirectory }}/{{ projectname }}.sock {{ projectname }}.wsgi:application'
 
     - name: Reload Daemon
       systemd:
@@ -88,40 +68,25 @@
         name: gunicorn
         state: started
 
-    - stat:
-        path: /etc/systemd/system/gunicorn.service
-      register: nginx_block
-
     - name: Create Nginx server block
-      copy:
-        src: projectblock
-        dest: /etc/nginx/sites-available/projectblock
+      template:
+        src: nginx_project.j2
+        dest: "/etc/nginx/sites-available/{{ project_name }}"
+        owner: root
         mode: 0777
-      when: nginx_block.stat.exists == false
 
-    - name: Change server name in nginx server block
-      lineinfile:
-        path: /etc/nginx/sites-available/projectblock
-        regexp: '^server_name '
-        line: 'server_name {{ server_address }};'
-
-    - name: Change static location in nginx server block
-      lineinfile:
-        path: /etc/nginx/sites-available/projectblock
-        regexp: '^alias '
-        line: 'alias {{ projectdirectory }}/static;'
-
-    - name: Change proxy_pass in nginx server block
-      lineinfile:
-        path: /etc/nginx/sites-available/projectblock
-        regexp: '^proxy_pass'
-        line: 'proxy_pass http://unix:{{ projectdirectory }}/{{ projectname }}.sock;'
+    - name: Remove nginx default page
+      file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: restart_nginx
 
     - name: Create a symbolic link of nginx server block
       file:
-        src: /etc/nginx/sites-available/projectblock
-        dest: /etc/nginx/sites-enabled/projectblock
+        src: "/etc/nginx/sites-available/{{ project_name }}"
+        dest: "/etc/nginx/sites-enabled/{{ project_name }}"
         state: link
+      notify: restart_nginx
 
     - name: check nginx configuration error
       command: nginx -t
@@ -130,13 +95,3 @@
     - name: show nginx any syntax errors
       debug:
         var: nginxconfigcheck
-
-    - name: started Nginx service
-      service:
-        name: nginx
-        state: started
-
-    - name: restarted Nginx service
-      service:
-        name: nginx
-        state: restarted

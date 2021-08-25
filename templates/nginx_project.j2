@@ -1,0 +1,18 @@
+server {
+listen 80;
+server_name {{ server_name }};
+location = /favicon.ico {
+	access_log /var/log/nginx-access.log;
+	error_log  /var/log/nginx-error.log;
+	log_not_found off;
+}
+
+location /static {
+	alias {{ alias_location }};
+}
+
+location / {
+	include proxy_params;
+	proxy_pass {{ proxy_pass_location }};
+	}
+}

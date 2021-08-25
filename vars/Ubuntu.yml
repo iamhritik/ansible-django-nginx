@@ -1,0 +1,12 @@
+---
+web_user: webhost
+server_name: "13.233.58.209"
+
+project_name: "affiliate"
+project_directory: "/home/{{ web_user }}/{{ project_name }}"
+#gunicorn variables
+github_repo: "https://github.com/iamhritik/publicaffiliate.git"
+gunicorn_project_name: "ExecStart=/home/webhost/bin/gunicorn --access-logfile - --workers 3 --bind unix:{{ project_directory }}/{{ project_name }}.sock {{ project_name }}.wsgi:application"
+#nginx variables
+alias_location: "{{ project_directory }}/static"
+proxy_pass_location: "http://unix:{{ project_directory }}/{{ project_name }}.sock"
