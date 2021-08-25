@@ -68,6 +68,7 @@
         name: gunicorn
         state: started
 
+#nginx configuration
     - name: Create Nginx server block
       template:
         src: nginx_project.j2
